@@ -1,0 +1,1 @@
+# rust-admin-wasteland
