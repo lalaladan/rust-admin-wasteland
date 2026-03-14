@@ -1,0 +1,37 @@
+version: '3.8'
+
+services:
+  backend:
+    build: ./backend
+    # Пробрасываем папку backend внутрь контейнера, чтобы код обновлялся на лету
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+    ports:
+      - "3000:3000"
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_NAME=rust_admin
+      - RUST_IP=IP_ТВОЕГО_СЕРВЕРА
+      - RUST_RCON_PORT=28016
+      - RUST_RCON_PASSWORD=ТВОЙ_ПАРОЛЬ_RCON
+    depends_on:
+      - db
+    # Используем nodemon для автоперезапуска при изменении кода
+    command: npx nodemon index.js
+
+  db:
+    image: mysql:8.0
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: rust_admin
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+
+volumes:
+  db_data:
