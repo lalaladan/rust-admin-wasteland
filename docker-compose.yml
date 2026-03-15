@@ -5,6 +5,7 @@ services:
     build: ./backend
     volumes:
       - ./backend:/app
+      - ./frontend:/app/frontend
       - /app/node_modules
     ports:
       - "3000:3000"

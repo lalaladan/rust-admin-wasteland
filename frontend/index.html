@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Rust Admin Panel</title>
+    <style>
+        body { background-color: #1e1e2e; color: #cdd6f4; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; }
+        .container { max-width: 800px; margin: 0 auto; }
+        .panel { background-color: #313244; padding: 20px; border-radius: 10px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        h1 { border-bottom: 2px solid #89b4fa; padding-bottom: 10px; margin-top: 0; }
+        
+        /* Стили для чата */
+        .chat-box { height: 400px; overflow-y: auto; background-color: #181825; padding: 15px; border-radius: 5px; margin-bottom: 15px; font-family: monospace; font-size: 14px; }
+        .msg { margin-bottom: 5px; }
+        .time { color: #6c7086; }
+        .player { color: #a6e3a1; font-weight: bold; }
+        .admin-player { color: #f38ba8; font-weight: bold; }
+        
+        /* Стили для формы отправки */
+        .controls { display: flex; gap: 10px; }
+        input[type="text"] { flex-grow: 1; padding: 10px; border: none; border-radius: 5px; background-color: #45475a; color: #fff; outline: none; }
+        button { padding: 10px 20px; background-color: #89b4fa; color: #11111b; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; transition: 0.2s; }
+        button:hover { background-color: #b4befe; }
+        /* Стили для таблицы игроков */
+        .players-table { width: 100%; border-collapse: collapse; margin-top: 20px; background-color: #181825; border-radius: 5px; overflow: hidden; }
+        .players-table th { background-color: #89b4fa; color: #11111b; padding: 10px; text-align: left; }
+        .players-table td { padding: 10px; border-bottom: 1px solid #313244; }
+        .players-table tr:hover { background-color: #313244; }
+        
+        .btn-kick { background-color: #fab387; color: #11111b; padding: 5px 10px; border: none; border-radius: 3px; cursor: pointer; font-size: 12px; font-weight: bold; }
+        .btn-kick:hover { background-color: #f5a97f; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="panel">
+        <h1>Управление сервером Rust</h1>
+        
+        <h3>Игровой чат (Live)</h3>
+        <div class="chat-box" id="chat">Загрузка логов...</div>
+
+        <div class="controls">
+            <input type="text" id="adminMsg" placeholder="Написать в серверный чат (от лица админа)..." onkeypress="handleKeyPress(event)">
+            <button onclick="sendMessage()">Отправить</button>
+        </div>
+        <h3 style="margin-top: 30px;">Онлайн игроки (<span id="playerCount">0</span>)</h3>
+        <table class="players-table">
+            <thead>
+                <tr>
+                    <th>Никнейм</th>
+                    <th>SteamID</th>
+                    <th>Пинг</th>
+                    <th>Время в игре</th>
+                    <th>Действия</th>
+                </tr>
+            </thead>
+            <tbody id="playersList">
+                <tr><td colspan="5" style="text-align: center;">Загрузка списка игроков...</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 1. Функция загрузки истории чата из базы данных
+    async function loadChat() {
+        try {
+            // Идем на наш Node.js бэкенд
+            const response = await fetch('http://localhost:3000/api/chat');
+            const messages = await response.json();
+            
+            const chatBox = document.getElementById('chat');
+            chatBox.innerHTML = ''; 
+            
+            // База отдает новые сообщения первыми (DESC). Переворачиваем, чтобы читать сверху вниз
+            messages.reverse().forEach(msg => {
+                const date = new Date(msg.created_at).toLocaleTimeString();
+                const isServer = msg.player_name.includes('SERVER');
+                const nameClass = isServer ? 'admin-player' : 'player';
+                
+                chatBox.innerHTML += `
+                    <div class="msg">
+                        <span class="time">[${date}]</span> 
+                        <span class="${nameClass}">${msg.player_name}:</span> 
+                        ${msg.message}
+                    </div>
+                `;
+            });
+            
+            // Автоматически прокручиваем чат в самый низ
+            chatBox.scrollTop = chatBox.scrollHeight;
+        } catch (err) {
+            console.error('Ошибка загрузки чата:', err);
+        }
+    }
+
+    // 2. Функция отправки сообщения
+    async function sendMessage() {
+        const input = document.getElementById('adminMsg');
+        const text = input.value.trim();
+        if (!text) return;
+        
+        try {
+            // Дергаем API для отправки
+            await fetch('/api/say?text=' + encodeURIComponent(text));
+            input.value = ''; // Очищаем поле ввода
+            loadChat(); // Сразу обновляем чат, чтобы увидеть свое сообщение
+        } catch (err) {
+            alert('Ошибка при отправке сообщения!');
+        }
+    }
+
+    // Позволяет отправлять сообщение на клавишу Enter
+    function handleKeyPress(event) {
+        if (event.key === 'Enter') sendMessage();
+    }
+
+    // При открытии страницы загружаем чат, и обновляем его каждые 2 секунды (Live режим)
+    loadChat();
+    setInterval(loadChat, 2000);
+    // Функция форматирования времени (из секунд в часы:минуты)
+    function formatTime(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        return `${h} ч. ${m} мин.`;
+    }
+
+    // Функция загрузки списка игроков
+    async function loadPlayers() {
+        try {
+            const response = await fetch('/api/players');
+            const players = await response.json();
+            
+            document.getElementById('playerCount').innerText = players.length;
+            const tbody = document.getElementById('playersList');
+            
+            if (players.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align: center;">На сервере пока никого нет :(</td></tr>';
+                return;
+            }
+
+            tbody.innerHTML = ''; // Очищаем старые данные
+            
+            players.forEach(p => {
+                // Создаем ссылку на профиль Steam
+                const steamLink = `https://steamcommunity.com/profiles/${p.SteamID}`;
+                
+                tbody.innerHTML += `
+                    <tr>
+                        <td style="color: #a6e3a1; font-weight: bold;">${p.DisplayName}</td>
+                        <td><a href="${steamLink}" target="_blank" style="color: #89dceb; text-decoration: none;">${p.SteamID}</a></td>
+                        <td style="color: ${p.Ping > 100 ? '#f38ba8' : '#cdd6f4'}">${p.Ping} ms</td>
+                        <td>${formatTime(p.ConnectedSeconds)}</td>
+                        <td>
+                            <button class="btn-kick" onclick="kickPlayer('${p.SteamID}', '${p.DisplayName}')">Кикнуть</button>
+                        </td>
+                    </tr>
+                `;
+            });
+        } catch (err) {
+            console.error('Ошибка загрузки игроков:', err);
+        }
+    }
+
+   // Реальная функция кика с запросом причины
+    async function kickPlayer(steamId, name) {
+        // Запрашиваем причину у админа (всплывающее окно)
+        const reason = prompt(`Укажите причину кика для игрока ${name}:`, "Нарушение правил сервера");
+        
+        // Если админ нажал "Отмена", прекращаем действие
+        if (reason === null) return;
+
+        try {
+            await fetch(`/api/kick?steamid=${steamId}&reason=${encodeURIComponent(reason)}`);
+            // Сразу же обновляем список игроков, чтобы он пропал из таблицы
+            loadPlayers();
+        } catch (err) {
+            alert('Ошибка при отправке кика!');
+        }
+    }
+
+    // Запускаем обновление игроков каждые 5 секунд
+    loadPlayers();
+    setInterval(loadPlayers, 5000);
+</script>
+
+</body>
+</html>
