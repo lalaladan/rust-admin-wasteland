@@ -1,0 +1,11 @@
+{
+  "Enabled": false,
+  "Influx Database Url": "http://exampledb.com",
+  "Influx Database Name": "CHANGEME_rust_server_example",
+  "Influx Database User": "admin",
+  "Influx Database Password": "adminadmin",
+  "Server Tag": "CHANGEME-01",
+  "Debug Logging": false,
+  "Amount of metrics to submit in each request": 1000,
+  "Gather Player Averages (Client FPS, Client Latency, Player FPS, Player Memory, Player Latency, Player Packet Loss)": true
+}
